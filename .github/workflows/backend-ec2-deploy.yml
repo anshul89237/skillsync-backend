@@ -21,7 +21,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Build all services with Maven
-        run: mvn package -DskipTests --no-transfer-progress
+        run: mvn package -Dmaven.test.skip=true --no-transfer-progress
 
       - name: Ensure target directory exists on EC2
         uses: appleboy/ssh-action@v1.0.3
