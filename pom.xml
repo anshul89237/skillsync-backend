@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.lpu</groupId>
+  <artifactId>skillsync-backend</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>skillsync-backend</name>
+  <description>SkillSync backend reactor build</description>
+
+  <modules>
+    <module>common-security</module>
+    <module>EurekaServer</module>
+    <module>ConfigServer</module>
+    <module>ApiGateway</module>
+    <module>auth-service</module>
+    <module>LearnerService</module>
+    <module>MentorService</module>
+    <module>SkillService</module>
+    <module>SessionService</module>
+    <module>GroupService</module>
+    <module>ReviewService</module>
+    <module>NotificationService</module>
+    <module>PaymentService</module>
+  </modules>
+</project>

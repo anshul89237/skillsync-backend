@@ -1,0 +1,164 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    networks:
+      - skillsync-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - skillsync-network
+
+  eureka-server:
+    build: ./EurekaServer
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - skillsync-network
+
+  config-server:
+    build: ./ConfigServer
+    container_name: config-server
+    ports:
+      - "9999:9999"
+    depends_on:
+      - eureka-server
+    networks:
+      - skillsync-network
+
+  api-gateway:
+    build: ./ApiGateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - config-server
+    networks:
+      - skillsync-network
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  learner-service:
+    build: ./LearnerService
+    container_name: learner-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  mentor-service:
+    build: ./MentorService
+    container_name: mentor-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  skill-service:
+    build: ./SkillService
+    container_name: skill-service
+    ports:
+      - "8084:8084"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  session-service:
+    build: ./SessionService
+    container_name: session-service
+    ports:
+      - "8085:8085"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  group-service:
+    build: ./GroupService
+    container_name: group-service
+    ports:
+      - "8086:8086"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  review-service:
+    build: ./ReviewService
+    container_name: review-service
+    ports:
+      - "8087:8087"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  notification-service:
+    build: ./NotificationService
+    container_name: notification-service
+    ports:
+      - "8089:8089"
+    depends_on:
+      - config-server
+      - rabbitmq
+    networks:
+      - skillsync-network
+
+  payment-service:
+    build: ./PaymentService
+    container_name: payment-service
+    ports:
+      - "8090:8090"
+    depends_on:
+      - config-server
+      - postgres
+    networks:
+      - skillsync-network
+
+  frontend:
+    build: ../SkillSync-frontend
+    container_name: frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - skillsync-network
+
+networks:
+  skillsync-network:
+    driver: bridge

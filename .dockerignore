@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+.metadata
+**/target
+**/logs
+**/*.log
+**/*.log.*
+**/.classpath
+**/.project
+**/.settings
+**/node_modules
+Dockerfile*
