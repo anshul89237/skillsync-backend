@@ -59,8 +59,18 @@ jobs:
             RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
             EOF
 
-            docker compose down || true
+if docker compose version > /dev/null 2>&1; then
+              COMPOSE="docker compose"
+            else
+              COMPOSE="docker-compose"
+            fi
 
-            docker compose up -d --build \
+            $COMPOSE down || true
+
+            $COMPOSE up -d --build \
               postgres rabbitmq eureka-server config-server api-gateway \
               auth-service learner-service mentor-service skill-service \
+              session-service group-service review-service notification-service \
+              payment-service
+
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
