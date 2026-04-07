@@ -27,6 +27,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
+import org.springframework.beans.factory.annotation.Value;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -38,6 +39,9 @@ public class AuthController {
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthService authService;
+
+    @Value("${BACKEND_URL:http://localhost:8080}")
+    private String backendUrl;
 
     // 1. SEND OTP
     @PostMapping("/send-otp")
@@ -94,12 +98,12 @@ public class AuthController {
     @GetMapping("/google-login")
     public void googleLogin(HttpServletResponse response) throws IOException {
         logger.info("Redirecting to Google OAuth2 authorization");
-        response.sendRedirect("http://localhost:8080/oauth2/authorization/google");
+        response.sendRedirect(backendUrl + "/oauth2/authorization/google");
     }
 
     @GetMapping("/linkedin-login")
     public void linkedinLogin(HttpServletResponse response) throws IOException {
         logger.info("Redirecting to LinkedIn OAuth2 authorization");
-        response.sendRedirect("http://localhost:8080/oauth2/authorization/linkedin");
+        response.sendRedirect(backendUrl + "/oauth2/authorization/linkedin");
     }
 }

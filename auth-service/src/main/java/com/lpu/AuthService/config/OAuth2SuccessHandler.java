@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +30,9 @@ import jakarta.servlet.http.HttpServletResponse;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(OAuth2SuccessHandler.class);
+
+    @Value("${FRONTEND_URL:http://localhost:5173}")
+    private String frontendUrl;
 
     @Autowired
     private AuthUserRepository repo;
@@ -119,10 +123,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         RefreshToken refreshToken = refreshTokenService.createToken(user.getEmail());
         logger.info("Tokens generated for Google user: {}. Redirecting to frontend...", email);
 
-        // 🔥 Redirect to frontend with tokens
-        String frontendUrl = "http://localhost:5173/oauth2/redirect"; // Vite dev server port
-        logger.info("OAuth2 redirect: userId={}, email={}, role={}", user.getId(), user.getEmail(), user.getRole());
-        String redirectUrl = frontendUrl
+        // Redirect to frontend with tokens
+        String redirectUrl = (frontendUrl + "/oauth2/redirect")
                 + "?token=" + URLEncoder.encode(accessToken, StandardCharsets.UTF_8)
                 + "&refreshToken=" + URLEncoder.encode(refreshToken.getToken(), StandardCharsets.UTF_8)
                 + "&email=" + URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8)

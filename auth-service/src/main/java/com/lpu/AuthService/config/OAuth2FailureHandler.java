@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,9 @@ import jakarta.servlet.http.HttpServletResponse;
 public class OAuth2FailureHandler implements AuthenticationFailureHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(OAuth2FailureHandler.class);
+
+    @Value("${FRONTEND_URL:http://localhost:5173}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,
@@ -32,6 +36,6 @@ public class OAuth2FailureHandler implements AuthenticationFailureHandler {
         logger.error("OAuth2 authentication failed: {}", message, exception);
 
         String encodedReason = URLEncoder.encode(message, StandardCharsets.UTF_8);
-        response.sendRedirect("http://localhost:5173/login?error=oauth_failed&reason=" + encodedReason);
+        response.sendRedirect(frontendUrl + "/login?error=oauth_failed&reason=" + encodedReason);
     }
 }

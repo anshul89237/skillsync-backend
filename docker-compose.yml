@@ -64,6 +64,7 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/skillsync-users
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:9999/config
+      - FRONTEND_URL=${FRONTEND_URL}
     ports:
       - "8081:8081"
     depends_on:

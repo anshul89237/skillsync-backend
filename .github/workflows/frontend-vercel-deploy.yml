@@ -38,13 +38,16 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
-      - name: Build frontend
-        working-directory: SkillSync-frontend
-        run: npm run build
-
       - name: Pull Vercel environment
         working-directory: SkillSync-frontend
         run: npx vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Inject VITE_API_BASE_URL from GitHub secret
+        working-directory: SkillSync-frontend
+        run: |
+          ENV_FILE=".vercel/.env.production.local"
+          [ -f "$ENV_FILE" ] && sed -i '/^VITE_API_BASE_URL=/d' "$ENV_FILE" || true
+          echo "VITE_API_BASE_URL=$VITE_API_BASE_URL" >> "$ENV_FILE"
 
       - name: Build Vercel output
         working-directory: SkillSync-frontend

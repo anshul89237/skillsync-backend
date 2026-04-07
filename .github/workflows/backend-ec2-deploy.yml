@@ -61,6 +61,7 @@ jobs:
             RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
             RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
             BACKEND_URL=https://3.233.239.63.nip.io
+            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
             ENVEOF
             if docker compose version > /dev/null 2>&1; then
               COMPOSE="docker compose"
@@ -74,12 +75,13 @@ jobs:
               session-service group-service review-service notification-service \
               payment-service
             echo "Waiting for postgres to be ready..."
-            sleep 15
+            for i in $(seq 1 30); do
+              docker exec postgres pg_isready -U postgres && break || sleep 3
+            done
             for db in skillsync-auth skillsync-groups skillsync-learners skillsync-mentors \
                       skillsync-payments skillsync-reviews skillsync-sessions \
                       skillsync-skills skillsync-users; do
               docker exec postgres psql -U postgres -tc \
-                "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 \
-                || docker exec postgres psql -U postgres -c "CREATE DATABASE \"$db\""
+                "SELECT 'CREATE DATABASE \"$db\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$db') \gexec"
             done
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
