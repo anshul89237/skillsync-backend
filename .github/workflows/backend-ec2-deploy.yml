@@ -6,10 +6,15 @@ on:
       - "**"
       - ".github/workflows/backend-ec2-deploy.yml"
   workflow_dispatch:
+
 jobs:
   deploy:
     name: Deploy Backend to EC2
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,54 +28,67 @@ jobs:
       - name: Build all services with Maven
         run: mvn package -Dmaven.test.skip=true --no-transfer-progress
 
-      - name: Ensure target directory exists on EC2
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
-            mkdir -p "${{ secrets.EC2_TARGET_PATH }}"
-      - name: Package deploy artifacts
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker images to ghcr.io
         run: |
-          mkdir -p deploy-pkg/docker
-          cp docker-compose.yml deploy-pkg/
-          cp -r docker/ deploy-pkg/docker/
-          for svc in ApiGateway auth-service ConfigServer EurekaServer GroupService \
-                     LearnerService MentorService NotificationService PaymentService \
-                     ReviewService SessionService SkillService common-security; do
-            if [ -d "$svc" ]; then
-              mkdir -p "deploy-pkg/$svc/target"
-              cp "$svc/Dockerfile" "deploy-pkg/$svc/" 2>/dev/null || true
-              find "$svc/target" -maxdepth 1 -name "*.jar" ! -name "*.jar.original" \
-                -exec cp {} "deploy-pkg/$svc/target/" \; 2>/dev/null || true
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          declare -A SERVICES=(
+            [ApiGateway]=skillsync-api-gateway
+            [auth-service]=skillsync-auth-service
+            [ConfigServer]=skillsync-config-server
+            [EurekaServer]=skillsync-eureka-server
+            [GroupService]=skillsync-group-service
+            [LearnerService]=skillsync-learner-service
+            [MentorService]=skillsync-mentor-service
+            [NotificationService]=skillsync-notification-service
+            [PaymentService]=skillsync-payment-service
+            [ReviewService]=skillsync-review-service
+            [SessionService]=skillsync-session-service
+            [SkillService]=skillsync-skill-service
+          )
+          for dir in "${!SERVICES[@]}"; do
+            name="${SERVICES[$dir]}"
+            if [ -d "$dir" ] && [ -f "$dir/Dockerfile" ]; then
+              echo "Building ghcr.io/$OWNER/$name:latest from $dir..."
+              docker build -t "ghcr.io/$OWNER/$name:latest" "$dir"
+              docker push "ghcr.io/$OWNER/$name:latest"
             fi
           done
 
-      - name: Upload backend files to EC2
+      - name: Upload config files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          source: "deploy-pkg/"
+          source: "docker-compose.yml,docker/"
           target: "${{ secrets.EC2_TARGET_PATH }}"
-          strip_components: 1
           overwrite: true
-          timeout: 30m
-          command_timeout: 30m
-      - name: Write .env file and start services on EC2
+
+      - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+          REPO_OWNER: ${{ github.repository_owner }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
+          command_timeout: 10m
+          envs: GHCR_TOKEN,GH_ACTOR,REPO_OWNER
           script: |
             set -e
             cd "${{ secrets.EC2_TARGET_PATH }}"
+
             cat > .env <<'ENVEOF'
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
@@ -82,17 +100,26 @@ jobs:
             BACKEND_URL=https://3.233.239.63.nip.io
             FRONTEND_URL=${{ secrets.FRONTEND_URL }}
             ENVEOF
+
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+
             if docker compose version > /dev/null 2>&1; then
               COMPOSE="docker compose"
             else
               COMPOSE="docker-compose"
             fi
+
             $COMPOSE down || true
-            $COMPOSE up -d --build \
+            $COMPOSE pull \
+              eureka-server config-server api-gateway auth-service \
+              learner-service mentor-service skill-service session-service \
+              group-service review-service notification-service payment-service
+            $COMPOSE up -d \
               postgres rabbitmq eureka-server config-server api-gateway \
               auth-service learner-service mentor-service skill-service \
               session-service group-service review-service notification-service \
               payment-service
+
             echo "Waiting for postgres to be ready..."
             for i in $(seq 1 30); do
               docker exec postgres pg_isready -U postgres && break || sleep 3

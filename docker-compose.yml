@@ -23,6 +23,7 @@ services:
       - skillsync-network
 
   eureka-server:
+    image: ghcr.io/anshul89237/skillsync-eureka-server:latest
     build: ./EurekaServer
     container_name: eureka-server
     ports:
@@ -31,6 +32,7 @@ services:
       - skillsync-network
 
   config-server:
+    image: ghcr.io/anshul89237/skillsync-config-server:latest
     build: ./ConfigServer
     container_name: config-server
     ports:
@@ -41,6 +43,7 @@ services:
       - skillsync-network
 
   api-gateway:
+    image: ghcr.io/anshul89237/skillsync-api-gateway:latest
     build: ./ApiGateway
     container_name: api-gateway
     restart: on-failure
@@ -56,6 +59,7 @@ services:
       - skillsync-network
 
   auth-service:
+    image: ghcr.io/anshul89237/skillsync-auth-service:latest
     build: ./auth-service
     container_name: auth-service
     restart: on-failure
@@ -74,6 +78,7 @@ services:
       - skillsync-network
 
   learner-service:
+    image: ghcr.io/anshul89237/skillsync-learner-service:latest
     build: ./LearnerService
     container_name: learner-service
     restart: on-failure
@@ -91,6 +96,7 @@ services:
       - skillsync-network
 
   mentor-service:
+    image: ghcr.io/anshul89237/skillsync-mentor-service:latest
     build: ./MentorService
     container_name: mentor-service
     restart: on-failure
@@ -108,6 +114,7 @@ services:
       - skillsync-network
 
   skill-service:
+    image: ghcr.io/anshul89237/skillsync-skill-service:latest
     build: ./SkillService
     container_name: skill-service
     restart: on-failure
@@ -125,6 +132,7 @@ services:
       - skillsync-network
 
   session-service:
+    image: ghcr.io/anshul89237/skillsync-session-service:latest
     build: ./SessionService
     container_name: session-service
     restart: on-failure
@@ -143,6 +151,7 @@ services:
       - skillsync-network
 
   group-service:
+    image: ghcr.io/anshul89237/skillsync-group-service:latest
     build: ./GroupService
     container_name: group-service
     restart: on-failure
@@ -160,6 +169,7 @@ services:
       - skillsync-network
 
   review-service:
+    image: ghcr.io/anshul89237/skillsync-review-service:latest
     build: ./ReviewService
     container_name: review-service
     restart: on-failure
@@ -177,6 +187,7 @@ services:
       - skillsync-network
 
   notification-service:
+    image: ghcr.io/anshul89237/skillsync-notification-service:latest
     build: ./NotificationService
     container_name: notification-service
     restart: on-failure
@@ -194,6 +205,7 @@ services:
       - skillsync-network
 
   payment-service:
+    image: ghcr.io/anshul89237/skillsync-payment-service:latest
     build: ./PaymentService
     container_name: payment-service
     restart: on-failure
