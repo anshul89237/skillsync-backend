@@ -32,6 +32,22 @@ jobs:
           port: ${{ secrets.EC2_PORT }}
           script: |
             mkdir -p "${{ secrets.EC2_TARGET_PATH }}"
+      - name: Package deploy artifacts
+        run: |
+          mkdir -p deploy-pkg/docker
+          cp docker-compose.yml deploy-pkg/
+          cp -r docker/ deploy-pkg/docker/
+          for svc in ApiGateway auth-service ConfigServer EurekaServer GroupService \
+                     LearnerService MentorService NotificationService PaymentService \
+                     ReviewService SessionService SkillService common-security; do
+            if [ -d "$svc" ]; then
+              mkdir -p "deploy-pkg/$svc/target"
+              cp "$svc/Dockerfile" "deploy-pkg/$svc/" 2>/dev/null || true
+              find "$svc/target" -maxdepth 1 -name "*.jar" ! -name "*.jar.original" \
+                -exec cp {} "deploy-pkg/$svc/target/" \; 2>/dev/null || true
+            fi
+          done
+
       - name: Upload backend files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -39,8 +55,9 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          source: "."
+          source: "deploy-pkg/"
           target: "${{ secrets.EC2_TARGET_PATH }}"
+          strip_components: 1
           overwrite: true
       - name: Write .env file and start services on EC2
         uses: appleboy/ssh-action@v1.0.3
