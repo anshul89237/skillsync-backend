@@ -59,6 +59,8 @@ jobs:
           target: "${{ secrets.EC2_TARGET_PATH }}"
           strip_components: 1
           overwrite: true
+          timeout: 30m
+          command_timeout: 30m
       - name: Write .env file and start services on EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
