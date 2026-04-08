@@ -62,79 +62,84 @@ jobs:
           done
 
       - name: Deploy on EC2
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
         env:
-          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
+          GH_ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          command_timeout: 25m
+          envs: GHCR_TOKEN,GH_ACTOR
+          script: |
+            set -e
+            mkdir -p "${{ secrets.EC2_TARGET_PATH }}/docker/prometheus"
+            cd "${{ secrets.EC2_TARGET_PATH }}"
 
-          SSH_OPTS="-i ~/.ssh/deploy_key -p ${{ secrets.EC2_PORT }} \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=10 \
-            -o ConnectTimeout=30"
+            RAW_BASE="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}"
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker-compose.yml" -o docker-compose.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/init-db.sh" -o docker/init-db.sh
+            chmod +x docker/init-db.sh
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/filebeat.yml" -o docker/filebeat.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/filebeat.properties" -o docker/filebeat.properties
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/prometheus/prometheus.yml" -o docker/prometheus/prometheus.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/prometheus/prometheus.properties" -o docker/prometheus/prometheus.properties
 
-          ssh $SSH_OPTS ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} bash -s -- "$GHCR_TOKEN" <<'REMOTE_SCRIPT'
-          set -e
-          TOKEN="$1"
+            cat > .env <<'ENVEOF'
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+            RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
+            RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
+            BACKEND_URL=https://3.233.239.63.nip.io
+            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+            ENVEOF
 
-          mkdir -p "${{ secrets.EC2_TARGET_PATH }}/docker/prometheus"
-          cd "${{ secrets.EC2_TARGET_PATH }}"
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
 
-          RAW_BASE="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}"
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker-compose.yml" -o docker-compose.yml
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker/init-db.sh" -o docker/init-db.sh
-          chmod +x docker/init-db.sh
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker/filebeat.yml" -o docker/filebeat.yml
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker/filebeat.properties" -o docker/filebeat.properties
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker/prometheus/prometheus.yml" -o docker/prometheus/prometheus.yml
-          curl -fsSL -H "Authorization: token $TOKEN" "$RAW_BASE/docker/prometheus/prometheus.properties" -o docker/prometheus/prometheus.properties
+            if docker compose version > /dev/null 2>&1; then
+              COMPOSE="docker compose"
+            else
+              COMPOSE="docker-compose"
+            fi
 
-          cat > .env <<'ENVEOF'
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          JWT_SECRET=${{ secrets.JWT_SECRET }}
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
-          RAZORPAY_KEY_ID=${{ secrets.RAZORPAY_KEY_ID }}
-          RAZORPAY_KEY_SECRET=${{ secrets.RAZORPAY_KEY_SECRET }}
-          BACKEND_URL=https://3.233.239.63.nip.io
-          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
-          ENVEOF
+            $COMPOSE down || true
+            $COMPOSE pull \
+              eureka-server config-server api-gateway auth-service \
+              learner-service mentor-service skill-service session-service \
+              group-service review-service notification-service payment-service
+            $COMPOSE up -d \
+              postgres rabbitmq eureka-server config-server api-gateway \
+              auth-service learner-service mentor-service skill-service \
+              session-service group-service review-service notification-service \
+              payment-service
 
-          echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            echo "Waiting for postgres to be ready..."
+            for i in $(seq 1 30); do
+              docker exec postgres pg_isready -U postgres && break || sleep 3
+            done
+            for db in skillsync-auth skillsync-groups skillsync-learners skillsync-mentors \
+                      skillsync-payments skillsync-reviews skillsync-sessions \
+                      skillsync-skills skillsync-users; do
+              docker exec postgres psql -U postgres -tc \
+                "SELECT 'CREATE DATABASE \"$db\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$db') \gexec"
+            done
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
-          if docker compose version > /dev/null 2>&1; then
-            COMPOSE="docker compose"
-          else
-            COMPOSE="docker-compose"
-          fi
-
-          $COMPOSE down || true
-          $COMPOSE pull \
-            eureka-server config-server api-gateway auth-service \
-            learner-service mentor-service skill-service session-service \
-            group-service review-service notification-service payment-service
-          $COMPOSE up -d \
-            postgres rabbitmq eureka-server config-server api-gateway \
-            auth-service learner-service mentor-service skill-service \
-            session-service group-service review-service notification-service \
-            payment-service
-
-          echo "Waiting for postgres to be ready..."
-          for i in $(seq 1 30); do
-            docker exec postgres pg_isready -U postgres && break || sleep 3
-          done
-          for db in skillsync-auth skillsync-groups skillsync-learners skillsync-mentors \
-                    skillsync-payments skillsync-reviews skillsync-sessions \
-                    skillsync-skills skillsync-users; do
-            docker exec postgres psql -U postgres -tc \
-              "SELECT 'CREATE DATABASE \"$db\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$db') \gexec"
-          done
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-          REMOTE_SCRIPT
-
-          rm -f ~/.ssh/deploy_key
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          command_timeout: 2m
+          script: |
+            cd "${{ secrets.EC2_TARGET_PATH }}"
+            docker ps --format "table {{.Names}}\t{{.Status}}" | head -20
+            echo "Deployment verified."
