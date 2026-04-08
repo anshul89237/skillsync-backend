@@ -127,7 +127,8 @@ jobs:
                       skillsync-payments skillsync-reviews skillsync-sessions \
                       skillsync-skills skillsync-users; do
               docker exec postgres psql -U postgres -tc \
-                "SELECT 'CREATE DATABASE \"$db\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$db') \gexec"
+                "SELECT 1 FROM pg_database WHERE datname = '$db'" | grep -q 1 || \
+                docker exec postgres psql -U postgres -c "CREATE DATABASE \"$db\""
             done
             docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
