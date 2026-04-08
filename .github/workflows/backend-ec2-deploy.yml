@@ -123,6 +123,12 @@ jobs:
             for i in $(seq 1 30); do
               docker exec postgres pg_isready -U postgres && break || sleep 3
             done
+            sleep 10
+            for i in $(seq 1 5); do
+              docker exec postgres psql -U postgres -c "SELECT 1" > /dev/null 2>&1 && break
+              echo "Postgres not stable yet, retrying in 5s..."
+              sleep 5
+            done
             for db in skillsync-auth skillsync-groups skillsync-learners skillsync-mentors \
                       skillsync-payments skillsync-reviews skillsync-sessions \
                       skillsync-skills skillsync-users; do
