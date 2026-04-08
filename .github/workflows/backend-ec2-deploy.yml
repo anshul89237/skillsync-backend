@@ -61,17 +61,6 @@ jobs:
             fi
           done
 
-      - name: Upload config files to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          source: "docker-compose.yml,docker/"
-          target: "${{ secrets.EC2_TARGET_PATH }}"
-          overwrite: true
-
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -83,11 +72,21 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
-          command_timeout: 10m
+          command_timeout: 25m
           envs: GHCR_TOKEN,GH_ACTOR,REPO_OWNER
           script: |
             set -e
+            mkdir -p "${{ secrets.EC2_TARGET_PATH }}/docker/prometheus"
             cd "${{ secrets.EC2_TARGET_PATH }}"
+
+            RAW_BASE="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}"
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker-compose.yml" -o docker-compose.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/init-db.sh" -o docker/init-db.sh
+            chmod +x docker/init-db.sh
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/filebeat.yml" -o docker/filebeat.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/filebeat.properties" -o docker/filebeat.properties
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/prometheus/prometheus.yml" -o docker/prometheus/prometheus.yml
+            curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$RAW_BASE/docker/prometheus/prometheus.properties" -o docker/prometheus/prometheus.properties
 
             cat > .env <<'ENVEOF'
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
